@@ -116,9 +116,26 @@ class NeuralNetwork(object):
     def predict(self, test_data):
         """ Evaluate performance by counting how many examples in test_data are correctly 
             evaluated. """
-        self.feedforward(test_data[0])
-        answer = np.argmax(test_data[1], axis=1)
-        prediction = np.argmax(self.o_output, axis=1)
-        count = len(test_data[0]) - np.count_nonzero(answer - prediction)
-        return count 
+        count=0
+        for i in range(len(test_data[0])):
+            self.feedforward(test_data[0][i])
+            answer = np.argmax(test_data[1][i])
+            prediction = np.argmax(self.o_output)
+            if answer==prediction:
+                count+=1
+        return count
+    
+    def feedforward(self, inputs):
+        self.o_input[0][:-1]=inputs
+        #print("o_input",self.o_input[0])
+        #print("W_input_to_hidden",self.W_input_to_hidden)
+        self.u_hidden = self.o_input[0].dot(self.W_input_to_hidden)
+        #print("u_hidden",self.u_hidden)
+        self.o_hidden[0][:-1] = sigmoid(self.u_hidden)
+        #print("o_hidden",self.o_hidden)
+        self.u_output = self.o_hidden[0].dot(self.W_hidden_to_output)
+        #print("u_output",self.u_output)
+        self.o_output = sigmoid(self.u_output)
+        #print(self.o_output)
+        
 
