@@ -124,18 +124,5 @@ class NeuralNetwork(object):
             if answer==prediction:
                 count+=1
         return count
-    
-    def feedforward(self, inputs):
-        self.o_input[0][:-1]=inputs
-        #print("o_input",self.o_input[0])
-        #print("W_input_to_hidden",self.W_input_to_hidden)
-        self.u_hidden = self.o_input[0].dot(self.W_input_to_hidden)
-        #print("u_hidden",self.u_hidden)
-        self.o_hidden[0][:-1] = sigmoid(self.u_hidden)
-        #print("o_hidden",self.o_hidden)
-        self.u_output = self.o_hidden[0].dot(self.W_hidden_to_output)
-        #print("u_output",self.u_output)
-        self.o_output = sigmoid(self.u_output)
-        #print(self.o_output)
         
 
