@@ -26,19 +26,19 @@ class NeuralNetwork(object):
         self.output_layer_size = output_layer_size
 
         # initialize arrays for activations
-        self.u_hidden = np.zeros((1, self.hidden_layer_size-1))
-        self.u_output = np.zeros((1, self.output_layer_size))
+        self.u_hidden = np.zeros(self.hidden_layer_size-1)
+        self.u_output = np.zeros(self.output_layer_size)
 
         # initialize arrays for outputs
-        self.o_input = np.ones((1, self.input_layer_size))
-        self.o_hidden = np.ones((1, self.hidden_layer_size))
-        self.o_output = np.ones((1, self.output_layer_size))
+        self.o_input = np.ones(self.input_layer_size)
+        self.o_hidden = np.ones(self.hidden_layer_size)
+        self.o_output = np.ones(self.output_layer_size)
 
         # initialize arrays for partial derivatives according to activations
-        self.dE_du_hidden = np.zeros((1, self.hidden_layer_size-1))
-        self.dE_du_output = np.zeros((1, self.output_layer_size))
+        self.dE_du_hidden = np.zeros(self.hidden_layer_size-1)
+        self.dE_du_output = np.zeros(self.output_layer_size)
 
-        # create randomized weights Yann LeCun method in 1988's paper ( Default values)
+        # create randomized weights Yann LeCun method in 1988's paper (Default values)
         input_range = 1.0 / self.input_layer_size ** (1/2)
         self.W_input_to_hidden = np.random.normal(loc = 0, scale = input_range, size =(self.input_layer_size, self.hidden_layer_size-1))
         self.W_hidden_to_output = np.random.uniform(size = (self.hidden_layer_size, self.output_layer_size)) / np.sqrt(self.hidden_layer_size)
