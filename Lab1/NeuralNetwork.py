@@ -73,7 +73,8 @@ class NeuralNetwork(object):
             """
             
             for i in np.arange(0, len(inputs), batch_size):
-                yield (inputs[i:(i+batch_size)%len(inputs)], targets[i:(i+batch_size)%len(inputs)])
+                offset = min(i+batch_size, len(inputs))
+                yield (inputs[i:offset], targets[i:offset])
         
         # if no batch size is specified, do stochastic gradient descent
         
@@ -208,7 +209,7 @@ class NeuralNetwork(object):
         # get x axis
         iterations = np.arange(len(train_accuracies))
         
-        _, ax = plt.subplots(1, 2, figsize=(15, 7))
+        _, ax = plt.subplots(1, 2, figsize=(13, 4))
         
         # plot accuracies curve
         ax[0].plot(iterations, train_accuracies, label="Training data", color="blue")
@@ -225,7 +226,7 @@ class NeuralNetwork(object):
         ax[1].plot(iterations, errors, label="Mean Squared Error")
         ax[1].legend()
         ax[1].grid()
-        ax[1].axhline(y=0, color="red", ls="--", alpha=0.5)
+        ax[1].axhline(y=0, color="red", ls="--")
         ax[1].set_title("Mean Squared Error learning curve")
         ax[1].set_xlabel("Iterations")
         ax[1].set_ylabel("MSE")
