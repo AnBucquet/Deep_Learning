@@ -65,10 +65,15 @@ class NeuralNetwork(object):
         best_i2h_W = self.W_input_to_hidden
         best_h2o_W = self.W_hidden_to_output
         for it in range(iterations):
-            self.feedforward(inputs)
-            self.backpropagate(targets, learning_rate=learning_rate)
-            error = targets - self.o_output
-            error *= error
+            errors=[]
+            for i in range(len(inputs)):
+                self.feedforward(inputs[i])
+                answer = np.argmax(targets[i])
+                prediction = np.argmax(self.o_output)
+                self.backpropagate(targets[i], learning_rate=learning_rate)
+                error = targets[i] - self.o_output
+                error *= error
+                errors.append(error)
             training_accuracies.append(100*self.predict(data)/len(data[0]))
             validation_accuracies.append(100*self.predict(validation_data)/len(validation_data[0]))
             if validation_accuracies[-1] > best_val_acc:
