@@ -3,6 +3,7 @@ import random
 import numpy as np
 from utils import *
 from transfer_functions import * 
+import matplotlib.pyplot as plt
 
 
 class NeuralNetwork(object):
@@ -39,52 +40,115 @@ class NeuralNetwork(object):
         self.dE_du_output = np.zeros(self.output_layer_size)
 
         # create randomized weights Yann LeCun method in 1988's paper (Default values)
-        input_range = 1.0 / self.input_layer_size ** (1/2)
+        """input_range = 1.0 / self.input_layer_size ** (1/2)
         self.W_input_to_hidden = np.random.normal(loc = 0, scale = input_range, size =(self.input_layer_size, self.hidden_layer_size-1))
-        self.W_hidden_to_output = np.random.uniform(size = (self.hidden_layer_size, self.output_layer_size)) / np.sqrt(self.hidden_layer_size)
+        self.W_hidden_to_output = np.random.uniform(size = (self.hidden_layer_size, self.output_layer_size)) / np.sqrt(self.hidden_layer_size)"""
+        self.initialize()
 
-    def weights_init(self,wi=None,wo=None):
+    def initialize(self, wi=None, wo=None):
         input_range = 1.0 / self.input_layer_size ** (1/2)
+        
+        # initialize weights between input and hidden layer
         if wi is not None:
-            self.W_input_to_hidden = wi # weights between input and hidden layers
+            self.W_input_to_hidden = wi
         else:
-            self.W_input_to_hidden = np.random.normal(loc = 0, scale = input_range, size =(self.input_layer_size, self.hidden_layer_size-1))
+            self.W_input_to_hidden = np.random.normal(loc = 0, 
+                                                      scale = input_range, 
+                                                      size = (self.input_layer_size, 
+                                                              self.hidden_layer_size-1))
+            
+        # initialize weights between hidden and output layer
         if wo is not None:
-            self.W_hidden_to_output = wo # weights between hidden and output layers
+            self.W_hidden_to_output = wo
         else:
-            self.W_hidden_to_output = np.random.uniform(size = (self.hidden_layer_size, self.output_layer_size)) / np.sqrt(self.hidden_layer_size)
+            self.W_hidden_to_output = np.random.uniform(size = (self.hidden_layer_size, 
+                                                                self.output_layer_size)
+                                                       ) / np.sqrt(self.hidden_layer_size)
 
-    def train(self, data, validation_data, iterations=50, learning_rate=5.0, verbose=False):
+    def train(self, train_data, validation_data, iterations=50, learning_rate=5.0, plot=True):
+        
+        def next_batch(inputs, targets, batch_size):
+            """
+            Returns an iterable over dataset batches of size batch_size
+            """
+            
+            for i in np.arange(0, inputs.shape[0], batchSize):
+                yield (inputs[i:i + batchSize], targets[i:i + batchSize])
+        
+        # initialize weights
+        self.initialize()
+        
+        # get starting time to return execution time
         start_time = time.time()
-        training_accuracies = []
-        validation_accuracies = []
+        
+        # get inputs and targets from the dataset
+        inputs  = train_data[0]
+        targets = train_data[1]
+        
+        train_accuracies = []
+        val_accuracies = []
         errors = []
-        inputs  = data[0]
-        targets = data[1]
-        best_val_acc = 100*self.predict(validation_data)/len(validation_data[0])
-        best_i2h_W = self.W_input_to_hidden
-        best_h2o_W = self.W_hidden_to_output
+        
         for it in range(iterations):
-            errors=[]
+            
+            errorsi = []
+            count = 0
             for i in range(len(inputs)):
+                
+                # compute the outputs
                 self.feedforward(inputs[i])
-                answer = np.argmax(targets[i])
-                prediction = np.argmax(self.o_output)
+                
+                # update the weights
                 self.backpropagate(targets[i], learning_rate=learning_rate)
+                
+                # compute the squared error
                 error = targets[i] - self.o_output
                 error *= error
-                errors.append(error)
-            training_accuracies.append(100*self.predict(data)/len(data[0]))
-            validation_accuracies.append(100*self.predict(validation_data)/len(validation_data[0]))
-            if validation_accuracies[-1] > best_val_acc:
-                best_i2h_W = self.W_input_to_hidden
-                best_h2o_W = self.W_hidden_to_output
-            if verbose:
-                print("[Iteration %2d/%2d]  -Training_Accuracy:  %2.2f %%  -Validation_Accuracy: %2.2f %%  -time: %2.2f " %(it+1, iterations,
-                                                            training_accuracies[-1], validation_accuracies[-1], time.time() - start_time))
-                print("    - MSE:", np.sum(error)/len(targets))
-        print("Training time:", time.time()-start_time)
-        plot_train_val(range(1, iterations+1), training_accuracies, validation_accuracies, "Accuracy")
+                errorsi.append(error)
+                
+                # compute training data accuracy
+                target = np.argmax(targets[i])
+                prediction = np.argmax(self.o_output)
+                if target == prediction:
+                    count += 1
+               
+            # keep track of lerning values
+            errors.append(np.average(errorsi))
+            train_accuracies.append(count * 100 / len(inputs))
+            val_accuracies.append(self.accuracy(validation_data))
+        
+        """for it in range(iterations):
+            
+            errorsi = []
+            count = 0
+            for i in range(len(inputs)):
+                
+                # compute the outputs
+                self.feedforward(inputs[i])
+                
+                # update the weights
+                self.backpropagate(targets[i], learning_rate=learning_rate)
+                
+                # compute the squared error
+                error = targets[i] - self.o_output
+                error *= error
+                errorsi.append(error)
+                
+                # compute training data accuracy
+                target = np.argmax(targets[i])
+                prediction = np.argmax(self.o_output)
+                if target == prediction:
+                    count += 1
+               
+            # keep track of lerning values
+            errors.append(np.average(errorsi))
+            train_accuracies.append(count * 100 / len(inputs))
+            val_accuracies.append(self.accuracy(validation_data))"""
+        
+        if plot:
+            self.plot_curves(train_accuracies, val_accuracies, errors)
+        
+        return time.time()-start_time
        
     def train_xe(self, data, validation_data, iterations=50, learning_rate=5.0, verbose=False):
         start_time = time.time()
@@ -103,8 +167,8 @@ class NeuralNetwork(object):
             xe = targets*np.log(self.o_output)*(-1)
             error = targets - self.o_output
             error *= error
-            training_accuracies.append(100*self.predict(data)/len(data[0]))
-            validation_accuracies.append(100*self.predict(validation_data)/len(validation_data[0]))
+            training_accuracies.append(100*self.predict(data))
+            validation_accuracies.append(100*self.predict(validation_data))
             if validation_accuracies[-1] > best_val_acc:
                 best_i2h_W = self.W_input_to_hidden
                 best_h2o_W = self.W_hidden_to_output
@@ -118,16 +182,47 @@ class NeuralNetwork(object):
         self.W_hidden_to_output = best_h2o_W
         plot_train_val(range(1, iterations+1), training_accuracies, validation_accuracies, "Accuracy")
 
-    def predict(self, test_data):
-        """ Evaluate performance by counting how many examples in test_data are correctly 
-            evaluated. """
-        count=0
-        for i in range(len(test_data[0])):
-            self.feedforward(test_data[0][i])
-            answer = np.argmax(test_data[1][i])
-            prediction = np.argmax(self.o_output)
-            if answer==prediction:
-                count+=1
-        return count
+    def accuracy(self, test_data):
+        """ Returns percentage of well classified samples """
         
+        count = 0
+        
+        # iterate over the dataset
+        for i in range(len(test_data[0])):
+            
+            # compute the predictions
+            self.feedforward(test_data[0][i])
+            
+            # count correct predictions
+            target = np.argmax(test_data[1][i])
+            prediction = np.argmax(self.o_output)
+            if target == prediction:
+                count += 1
+                
+        return count * 100 / len(test_data[0])
+    
+    def plot_curves(self, train_accuracies, val_accuracies, errors):
+        
+        # get x axis
+        iterations = np.arange(len(train_accuracies))
+        
+        _, ax = plt.subplots(1, 2, figsize=(15, 7))
+        
+        # plot accuracies curve
+        ax[0].plot(iterations, train_accuracies, label="Training data")
+        ax[0].plot(iterations, val_accuracies, label="Validation data")
+        ax[0].legend()
+        ax[0].grid()
+        ax[0].set_title("Accuracy learning curve")
+        ax[0].set_xlabel("Iterations")
+        ax[0].set_ylabel("Accuracy")
+        
+        # plot MSE curve
+        ax[1].plot(iterations, errors)
+        ax[1].grid()
+        ax[1].set_title("Mean Squared Error learning curve")
+        ax[1].set_xlabel("Iterations")
+        ax[1].set_ylabel("MSE")
+        
+        plt.show() 
 
