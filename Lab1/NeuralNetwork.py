@@ -65,15 +65,17 @@ class NeuralNetwork(object):
                                                                 self.output_layer_size)
                                                        ) / np.sqrt(self.hidden_layer_size)
 
-    def train(self, train_data, validation_data, iterations=50, learning_rate=5.0, plot=True):
+    def train(self, train_data, validation_data, iterations=50, learning_rate=5.0, plot=True, batch_size=1):
         
-        def next_batch(inputs, targets, batch_size):
+        def next_batch(inputs, targets):#, batch_size):
             """
             Returns an iterable over dataset batches of size batch_size
             """
             
-            for i in np.arange(0, inputs.shape[0], batchSize):
-                yield (inputs[i:i + batchSize], targets[i:i + batchSize])
+            for i in np.arange(0, len(inputs), batch_size):
+                yield (inputs[i:(i+batch_size)%len(inputs)], targets[i:(i+batch_size)%len(inputs)])
+        
+        # if no batch size is specified, do stochastic gradient descent
         
         # initialize weights
         self.initialize()
@@ -85,70 +87,70 @@ class NeuralNetwork(object):
         inputs  = train_data[0]
         targets = train_data[1]
         
+        best_acc_it = 0
         train_accuracies = []
         val_accuracies = []
         errors = []
         
         for it in range(iterations):
-            
             errorsi = []
             count = 0
-            for i in range(len(inputs)):
+            for (inputs_batch, targets_batch) in next_batch(inputs, targets):
                 
-                # compute the outputs
-                self.feedforward(inputs[i])
+                # set derivatives to zero
+                dE_dw_hidden = np.zeros(self.W_input_to_hidden.shape)
+                dE_dw_output = np.zeros(self.W_hidden_to_output.shape)
+                
+                # compute the derivatives over the batch
+                for i in range(len(inputs_batch)):
+
+                    # compute the outputs
+                    self.feedforward(inputs_batch[i])
+
+                    # compute the derivatives
+                    dE_dw_hidden_b, dE_dw_output_b = self.backpropagate(targets_batch[i])
+                    
+                    # update the total derivatives
+                    dE_dw_hidden += dE_dw_hidden_b
+                    dE_dw_output += dE_dw_output_b
+
+                    # compute the squared error
+                    error = targets_batch[i] - self.o_output
+                    error *= error
+                    errorsi.append(error)
+
+                    # compute training data accuracy
+                    target = np.argmax(targets_batch[i])
+                    prediction = np.argmax(self.o_output)
+                    if target == prediction:
+                        count += 1
+                
+                # average the derivatives over the batch
+                dE_dw_hidden /= batch_size
+                dE_dw_output /= batch_size
                 
                 # update the weights
-                self.backpropagate(targets[i], learning_rate=learning_rate)
-                
-                # compute the squared error
-                error = targets[i] - self.o_output
-                error *= error
-                errorsi.append(error)
-                
-                # compute training data accuracy
-                target = np.argmax(targets[i])
-                prediction = np.argmax(self.o_output)
-                if target == prediction:
-                    count += 1
+                self.update_weights(dE_dw_hidden, dE_dw_output, learning_rate)
                
             # keep track of lerning values
-            errors.append(np.average(errorsi))
+            errors.append(np.average(errorsi))            
             train_accuracies.append(count * 100 / len(inputs))
-            val_accuracies.append(self.accuracy(validation_data))
-        
-        """for it in range(iterations):
+            new_accuracy = self.accuracy(validation_data)
+            val_accuracies.append(new_accuracy)
             
-            errorsi = []
-            count = 0
-            for i in range(len(inputs)):
-                
-                # compute the outputs
-                self.feedforward(inputs[i])
-                
-                # update the weights
-                self.backpropagate(targets[i], learning_rate=learning_rate)
-                
-                # compute the squared error
-                error = targets[i] - self.o_output
-                error *= error
-                errorsi.append(error)
-                
-                # compute training data accuracy
-                target = np.argmax(targets[i])
-                prediction = np.argmax(self.o_output)
-                if target == prediction:
-                    count += 1
-               
-            # keep track of lerning values
-            errors.append(np.average(errorsi))
-            train_accuracies.append(count * 100 / len(inputs))
-            val_accuracies.append(self.accuracy(validation_data))"""
+            # update best accuracy
+            if new_accuracy > val_accuracies[best_acc_it]:
+                best_acc_it = it
         
+        # plot learning curves and best accuracy
         if plot:
-            self.plot_curves(train_accuracies, val_accuracies, errors)
+            self.plot_curves(train_accuracies, 
+                             val_accuracies, 
+                             errors, 
+                             learning_rate, 
+                             best_acc_it)
         
-        return time.time()-start_time
+        return val_accuracies[best_acc_it], time.time() - start_time
        
     def train_xe(self, data, validation_data, iterations=50, learning_rate=5.0, verbose=False):
         start_time = time.time()
@@ -201,7 +203,7 @@ class NeuralNetwork(object):
                 
         return count * 100 / len(test_data[0])
     
-    def plot_curves(self, train_accuracies, val_accuracies, errors):
+    def plot_curves(self, train_accuracies, val_accuracies, errors, learning_rate, best_acc_it):
         
         # get x axis
         iterations = np.arange(len(train_accuracies))
@@ -209,20 +211,25 @@ class NeuralNetwork(object):
         _, ax = plt.subplots(1, 2, figsize=(15, 7))
         
         # plot accuracies curve
-        ax[0].plot(iterations, train_accuracies, label="Training data")
-        ax[0].plot(iterations, val_accuracies, label="Validation data")
+        ax[0].plot(iterations, train_accuracies, label="Training data", color="blue")
+        ax[0].plot(iterations, val_accuracies, label="Validation data", color="orange")
+        best_accuracy = val_accuracies[best_acc_it]
+        ax[0].plot([0, best_acc_it, best_acc_it], [best_accuracy, best_accuracy, 0], color="green", ls="--", alpha=0.6, label="Best accuracy")
         ax[0].legend()
         ax[0].grid()
         ax[0].set_title("Accuracy learning curve")
         ax[0].set_xlabel("Iterations")
-        ax[0].set_ylabel("Accuracy")
+        ax[0].set_ylabel("Accuracy [%]")
         
         # plot MSE curve
-        ax[1].plot(iterations, errors)
+        ax[1].plot(iterations, errors, label="Mean Squared Error")
+        ax[1].legend()
         ax[1].grid()
+        ax[1].axhline(y=0, color="red", ls="--", alpha=0.5)
         ax[1].set_title("Mean Squared Error learning curve")
         ax[1].set_xlabel("Iterations")
         ax[1].set_ylabel("MSE")
         
+        plt.suptitle('Hidden Layer Size: {} - Learning Rate: {} - Accuracy: {} %'.format(self.hidden_layer_size-1, learning_rate, best_accuracy))
         plt.show() 
 
