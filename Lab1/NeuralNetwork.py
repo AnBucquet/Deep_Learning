@@ -65,18 +65,21 @@ class NeuralNetwork(object):
                                                                 self.output_layer_size)
                                                        ) / np.sqrt(self.hidden_layer_size)
 
-    def train(self, train_data, validation_data, iterations=50, learning_rate=5.0, plot=True, batch_size=1):
+    def train(self, train_data, validation_data, epochs=50, learning_rate=5.0, plot=True, batch_size=1):
         
-        def next_batch(inputs, targets):#, batch_size):
+        def shuffle(data):
+            data = np.array(list(zip(*data)))
+            np.random.shuffle(data)
+            return np.array(list(zip(*data)))
+        
+        def next_batch(data):
             """
             Returns an iterable over dataset batches of size batch_size
             """
             
-            for i in np.arange(0, len(inputs), batch_size):
-                offset = min(i+batch_size, len(inputs))
-                yield (inputs[i:offset], targets[i:offset])
-        
-        # if no batch size is specified, do stochastic gradient descent
+            for i in np.arange(0, len(data[0]), batch_size):
+                offset = min(i+batch_size, len(data[0]))
+                yield (data[0][i:offset], data[1][i:offset])
         
         # initialize weights
         self.initialize()
@@ -85,18 +88,23 @@ class NeuralNetwork(object):
         start_time = time.time()
         
         # get inputs and targets from the dataset
-        inputs  = train_data[0]
-        targets = train_data[1]
+        #inputs  = train_data[0]
+        #targets = train_data[1]
         
         best_acc_it = 0
         train_accuracies = []
         val_accuracies = []
         errors = []
         
-        for it in range(iterations):
+        for it in range(epochs):
             errorsi = []
             count = 0
-            for (inputs_batch, targets_batch) in next_batch(inputs, targets):
+            
+            # shuffle the data to change the mini batches over epochs
+            data = shuffle(train_data)
+            
+            #for (inputs_batch, targets_batch) in next_batch(inputs, targets):
+            for (inputs_batch, targets_batch) in next_batch(data):
                 
                 # set derivatives to zero
                 dE_dw_hidden = np.zeros(self.W_input_to_hidden.shape)
@@ -135,7 +143,7 @@ class NeuralNetwork(object):
                
             # keep track of lerning values
             errors.append(np.average(errorsi))            
-            train_accuracies.append(count * 100 / len(inputs))
+            train_accuracies.append(count * 100 / len(data[0]))
             new_accuracy = self.accuracy(validation_data)
             val_accuracies.append(new_accuracy)
             
@@ -219,7 +227,7 @@ class NeuralNetwork(object):
         ax[0].legend()
         ax[0].grid()
         ax[0].set_title("Accuracy learning curve")
-        ax[0].set_xlabel("Iterations")
+        ax[0].set_xlabel("Epochs")
         ax[0].set_ylabel("Accuracy [%]")
         
         # plot MSE curve
@@ -228,7 +236,7 @@ class NeuralNetwork(object):
         ax[1].grid()
         ax[1].axhline(y=0, color="red", ls="--")
         ax[1].set_title("Mean Squared Error learning curve")
-        ax[1].set_xlabel("Iterations")
+        ax[1].set_xlabel("Epochs")
         ax[1].set_ylabel("MSE")
         
         plt.suptitle('Hidden Layer Size: {} - Learning Rate: {} - Accuracy: {} %'.format(self.hidden_layer_size-1, learning_rate, best_accuracy))
