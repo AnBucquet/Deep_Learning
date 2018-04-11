@@ -161,18 +161,46 @@ class NeuralNetwork(object):
         
         return val_accuracies[best_acc_it], time.time() - start_time
        
-    def train_xe(self, data, validation_data, iterations=50, learning_rate=5.0, verbose=False):
+    def train_xe(self, train_data, validation_data, epochs=50, learning_rate=5.0, plot=True, batch_size=1):
+        def shuffle(data):
+            data = np.array(list(zip(*data)))
+            np.random.shuffle(data)
+            return np.array(list(zip(*data)))
+        
+        def next_batch(data):
+            """
+            Returns an iterable over dataset batches of size batch_size
+            """
+            
+            for i in np.arange(0, len(data[0]), batch_size):
+                offset = min(i+batch_size, len(data[0]))
+                yield (data[0][i:offset], data[1][i:offset])
+
+                
+        # initialize weights
+        self.initialize()
+        
+        # get starting time to return execution time
+        start_time = time.time()
+        
+        # get inputs and targets from the dataset
+        #inputs  = train_data[0]
+        #targets = train_data[1]
+        
+        best_acc_it = 0
+        
         start_time = time.time()
         training_accuracies = []
         validation_accuracies = []
         errors = []
         xes = []
-        inputs  = data[0]
-        targets = data[1]
-        best_val_acc = 100*self.predict(validation_data)/len(validation_data[0])
+
+        best_val_acc = 0
         best_i2h_W = self.W_input_to_hidden
         best_h2o_W = self.W_hidden_to_output
+        '''        
         for it in range(iterations):
+            
             self.feedforward_xe(inputs)
             self.backpropagate_xe(targets, learning_rate=learning_rate)
             xe = targets*np.log(self.o_output)*(-1)
@@ -184,7 +212,7 @@ class NeuralNetwork(object):
                 best_i2h_W = self.W_input_to_hidden
                 best_h2o_W = self.W_hidden_to_output
             if verbose:
-                print("[Iteration %2d/%2d]  -Training_Accuracy:  %2.2f %%  -Validation_Accuracy: %2.2f %%  -time: %2.2f " %(it+1, iterations,
+            print("[Iteration %2d/%2d]  -Training_Accuracy:  %2.2f %%  -Validation_Accuracy: %2.2f %%  -time: %2.2f " %(it+1, iterations,
                                                             training_accuracies[-1], validation_accuracies[-1], time.time() - start_time))
                 print("    - MSE:", np.sum(error)/len(targets))
                 print("    - X-Entropy:", np.sum(xe)/len(targets))
@@ -192,6 +220,82 @@ class NeuralNetwork(object):
         self.W_input_to_hidden = best_i2h_W
         self.W_hidden_to_output = best_h2o_W
         plot_train_val(range(1, iterations+1), training_accuracies, validation_accuracies, "Accuracy")
+        '''  
+        for it in range(epochs):
+            errorsi = []
+            xesi = []
+            count = 0
+            
+            # shuffle the data to change the mini batches over epochs
+            data = shuffle(train_data)
+            
+            #for (inputs_batch, targets_batch) in next_batch(inputs, targets):
+            for (inputs_batch, targets_batch) in next_batch(data):
+                
+                # set derivatives to zero
+                dE_dw_hidden = np.zeros(self.W_input_to_hidden.shape)
+                dE_dw_output = np.zeros(self.W_hidden_to_output.shape)
+                
+                # compute the derivatives over the batch
+                for i in range(len(inputs_batch)):
+
+                    # compute the outputs
+                    self.feedforward_xe(inputs_batch[i])
+
+                    # compute the derivatives
+                    dE_dw_hidden_b, dE_dw_output_b = self.backpropagate_xe(targets_batch[i])
+                    
+                    # update the total derivatives
+                    dE_dw_hidden += dE_dw_hidden_b
+                    dE_dw_output += dE_dw_output_b
+
+                    # compute the squared error
+                    error = targets_batch[i] - self.o_output
+                    error *= error
+                    errorsi.append(error)
+                    xe = targets_batch[i]*np.log(self.o_output)*(-1)
+                    xesi.append(xe)
+                    
+                    # compute training data accuracy
+                    target = np.argmax(targets_batch[i])
+                    prediction = np.argmax(self.o_output)
+                    if target == prediction:
+                        count += 1
+                
+                # average the derivatives over the batch
+                dE_dw_hidden /= batch_size
+                dE_dw_output /= batch_size
+                
+                # update the weights
+                self.update_weights(dE_dw_hidden, dE_dw_output, learning_rate)
+               
+            # keep track of lerning values
+            errors.append(np.average(errorsi)) 
+            xes.append(np.aveage(xesi))
+            train_accuracies.append(count * 100 / len(data[0]))
+            new_accuracy = self.accuracy(validation_data)
+            val_accuracies.append(new_accuracy)
+            
+            # update best accuracy
+            if new_accuracy > val_accuracies[best_acc_it]:
+                best_acc_it = it
+        
+        # plot learning curves and best accuracy
+        if plot:
+            self.plot_curves(train_accuracies, 
+                             val_accuracies, 
+                             errors, 
+                             learning_rate, 
+                             best_acc_it)
+            self.plot_curves_xe(train_accuracies, 
+                             val_accuracies, 
+                             xes, 
+                             learning_rate, 
+                             best_acc_it)
+        
+        return val_accuracies[best_acc_it], time.time() - start_time
+        
+        
 
     def accuracy(self, test_data):
         """ Returns percentage of well classified samples """
@@ -238,6 +342,36 @@ class NeuralNetwork(object):
         ax[1].set_title("Mean Squared Error learning curve")
         ax[1].set_xlabel("Epochs")
         ax[1].set_ylabel("MSE")
+        
+        plt.suptitle('Hidden Layer Size: {} - Learning Rate: {} - Accuracy: {} %'.format(self.hidden_layer_size-1, learning_rate, best_accuracy))
+        plt.show() 
+                       
+    def plot_curves_xe(self, train_accuracies, val_accuracies, errors, learning_rate, best_acc_it):
+        
+        # get x axis
+        iterations = np.arange(len(train_accuracies))
+        
+        _, ax = plt.subplots(1, 2, figsize=(13, 4))
+        
+        # plot accuracies curve
+        ax[0].plot(iterations, train_accuracies, label="Training data", color="blue")
+        ax[0].plot(iterations, val_accuracies, label="Validation data", color="orange")
+        best_accuracy = val_accuracies[best_acc_it]
+        ax[0].plot([0, best_acc_it, best_acc_it], [best_accuracy, best_accuracy, 0], color="green", ls="--", alpha=0.6, label="Best accuracy")
+        ax[0].legend()
+        ax[0].grid()
+        ax[0].set_title("Accuracy learning curve")
+        ax[0].set_xlabel("Epochs")
+        ax[0].set_ylabel("Accuracy [%]")
+        
+        # plot Cross Entropy curve
+        ax[1].plot(iterations, errors, label="Cross Entropy")
+        ax[1].legend()
+        ax[1].grid()
+        ax[1].axhline(y=0, color="red", ls="--")
+        ax[1].set_title("Cross Entropy learning curve")
+        ax[1].set_xlabel("Epochs")
+        ax[1].set_ylabel("X-Entropy")
         
         plt.suptitle('Hidden Layer Size: {} - Learning Rate: {} - Accuracy: {} %'.format(self.hidden_layer_size-1, learning_rate, best_accuracy))
         plt.show() 
