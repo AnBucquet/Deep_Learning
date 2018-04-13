@@ -8,7 +8,12 @@ import matplotlib.pyplot as plt
 
 class NeuralNetwork(object):
     
-    def __init__(self, input_layer_size, hidden_layer_size, output_layer_size, transfer_f=sigmoid, transfer_df=dsigmoid):
+    def __init__(self, 
+                 input_layer_size, 
+                 hidden_layer_size, 
+                 output_layer_size, 
+                 transfer_f=sigmoid, 
+                 transfer_df=dsigmoid):
         """
         input_layer_size: number of input neurons
         hidden_layer_size: number of hidden neurons
@@ -40,12 +45,9 @@ class NeuralNetwork(object):
         self.dE_du_output = np.zeros(self.output_layer_size)
 
         # create randomized weights Yann LeCun method in 1988's paper (Default values)
-        """input_range = 1.0 / self.input_layer_size ** (1/2)
-        self.W_input_to_hidden = np.random.normal(loc = 0, scale = input_range, size =(self.input_layer_size, self.hidden_layer_size-1))
-        self.W_hidden_to_output = np.random.uniform(size = (self.hidden_layer_size, self.output_layer_size)) / np.sqrt(self.hidden_layer_size)"""
-        self.initialize()
+        self.initialize_weights()
 
-    def initialize(self, wi=None, wo=None):
+    def initialize_weights(self, wi=None, wo=None):
         input_range = 1.0 / self.input_layer_size ** (1/2)
         
         # initialize weights between input and hidden layer
@@ -63,103 +65,7 @@ class NeuralNetwork(object):
         else:
             self.W_hidden_to_output = np.random.uniform(size = (self.hidden_layer_size, 
                                                                 self.output_layer_size)
-                                                       ) / np.sqrt(self.hidden_layer_size)
-
-    def train(self, train_data, validation_data, epochs=50, learning_rate=5.0, plot=True, batch_size=1):
-        
-        def shuffle(data):
-            data = np.array(list(zip(*data)))
-            np.random.shuffle(data)
-            return np.array(list(zip(*data)))
-        
-        def next_batch(data):
-            """
-            Returns an iterable over dataset batches of size batch_size
-            """
-            
-            for i in np.arange(0, len(data[0]), batch_size):
-                offset = min(i+batch_size, len(data[0]))
-                yield (data[0][i:offset], data[1][i:offset])
-        
-        # initialize weights
-        self.initialize()
-        
-        # get starting time to return execution time
-        start_time = time.time()
-        
-        # get inputs and targets from the dataset
-        #inputs  = train_data[0]
-        #targets = train_data[1]
-        
-        best_acc_it = 0
-        train_accuracies = []
-        val_accuracies = []
-        errors = []
-        
-        for it in range(epochs):
-            errorsi = []
-            count = 0
-            
-            # shuffle the data to change the mini batches over epochs
-            data = shuffle(train_data)
-            
-            #for (inputs_batch, targets_batch) in next_batch(inputs, targets):
-            for (inputs_batch, targets_batch) in next_batch(data):
-                
-                # set derivatives to zero
-                dE_dw_hidden = np.zeros(self.W_input_to_hidden.shape)
-                dE_dw_output = np.zeros(self.W_hidden_to_output.shape)
-                
-                # compute the derivatives over the batch
-                for i in range(len(inputs_batch)):
-
-                    # compute the outputs
-                    self.feedforward(inputs_batch[i])
-
-                    # compute the derivatives
-                    dE_dw_hidden_b, dE_dw_output_b = self.backpropagate(targets_batch[i])
-                    
-                    # update the total derivatives
-                    dE_dw_hidden += dE_dw_hidden_b
-                    dE_dw_output += dE_dw_output_b
-
-                    # compute the squared error
-                    error = targets_batch[i] - self.o_output
-                    error *= error
-                    errorsi.append(error)
-
-                    # compute training data accuracy
-                    target = np.argmax(targets_batch[i])
-                    prediction = np.argmax(self.o_output)
-                    if target == prediction:
-                        count += 1
-                
-                # average the derivatives over the batch
-                dE_dw_hidden /= batch_size
-                dE_dw_output /= batch_size
-                
-                # update the weights
-                self.update_weights(dE_dw_hidden, dE_dw_output, learning_rate)
-               
-            # keep track of lerning values
-            errors.append(np.average(errorsi))            
-            train_accuracies.append(count * 100 / len(data[0]))
-            new_accuracy = self.accuracy(validation_data)
-            val_accuracies.append(new_accuracy)
-            
-            # update best accuracy
-            if new_accuracy > val_accuracies[best_acc_it]:
-                best_acc_it = it
-        
-        # plot learning curves and best accuracy
-        if plot:
-            self.plot_curves(train_accuracies, 
-                             val_accuracies, 
-                             errors, 
-                             learning_rate, 
-                             best_acc_it)
-        
-        return val_accuracies[best_acc_it], time.time() - start_time
+                                                       ) / np.sqrt(self.hidden_layer_size)    
        
     def train_xe(self, data, validation_data, iterations=50, learning_rate=5.0, verbose=False):
         start_time = time.time()
@@ -195,20 +101,14 @@ class NeuralNetwork(object):
 
     def accuracy(self, test_data):
         """ Returns percentage of well classified samples """
-        
-        count = 0
-        
-        # iterate over the dataset
-        for i in range(len(test_data[0])):
             
-            # compute the predictions
-            self.feedforward(test_data[0][i])
+        # compute the predictions
+        self.feedforward(test_data[0])
             
-            # count correct predictions
-            target = np.argmax(test_data[1][i])
-            prediction = np.argmax(self.o_output)
-            if target == prediction:
-                count += 1
+        # count correct predictions
+        target = np.argmax(test_data[1], axis=1)
+        prediction = np.argmax(self.o_output, axis=1)
+        count = np.sum(target == prediction)
                 
         return count * 100 / len(test_data[0])
     
